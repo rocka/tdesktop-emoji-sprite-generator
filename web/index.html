@@ -1,14 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Telegram Desktop Emoji Sprite Generator</title>
-    <style>
-    #cvs { width: 1152px; }
-    </style>
+    <script src="//cdn.jsdelivr.net/npm/uzip@0.20201231.0/UZIP.min.js"></script>
 </head>
+
 <body>
-    <canvas id="cvs" width="2304" height="5688"></canvas>
+    <table>
+        <tbody>
+            <tr>
+                <th><label for="set-id">Set ID</label></th>
+                <td><input id="set-id" type="text" value="1"></td>
+            </tr>
+            <tr>
+                <th><label for="set-version">Set Version</label></th>
+                <td><input id="set-version" type="text" value="2"></td>
+            </tr>
+            <tr>
+                <th><label for="emoji-font">Emoji Font</label></th>
+                <td><input id="emoji-font" type="text" value="Blobmoji"></td>
+            </tr>
+            <tr>
+                <th><label for="font-size">Font Size</label></th>
+                <td><input id="font-size" type="number" value="58"></td>
+            </tr>
+            <tr>
+                <th><label for="offset-x">Offset X</label></th>
+                <td><input id="offset-x" type="number" value="0"></td>
+            </tr>
+            <tr>
+                <th><label for="offset-y">Offset Y</label></th>
+                <td><input id="offset-y" type="number" value="-5"></td>
+            </tr>
+            <tr>
+                <th><label for="limit-width">Limit Glyph Width</label></th>
+                <td><input id="limit-width" type="checkbox" checked></td>
+            </tr>
+            <tr>
+                <th><label for="preview">Preview</label></th>
+                <td>
+                    <button id="preview" onclick="preview(0)">Preview</button>
+                    <label for="debug"><input id="debug" type="checkbox">Debug (Show Grid)</label>
+                    <button id="preview-prev" onclick="preview(-1)">Prev</button>
+                    <span id="preview-page">-/-</span>
+                    <button id="preview-next" onclick="preview(1)">Next</button>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="generate">Generate</label></th>
+                <td><button id="generate" onclick="generate()">Download .zip</button></td>
+            </tr>
+        </tbody>
+    </table>
+    <canvas id="cvs" style="width:1152px"></canvas>
     <script src="./index.js"></script>
 </body>
+
 </html>
