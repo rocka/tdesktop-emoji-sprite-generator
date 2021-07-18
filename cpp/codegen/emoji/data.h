@@ -1,10 +1,9 @@
-/*
-This file is part of Telegram Desktop,
-the official desktop application for the Telegram messaging service.
-
-For license and copyright information please follow this link:
-https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
-*/
+// This file is part of Desktop App Toolkit,
+// a set of libraries for developing nice desktop applications.
+//
+// For license and copyright information please follow this link:
+// https://github.com/desktop-app/legal/blob/master/LEGAL
+//
 #pragma once
 
 #include "codegen/common/logging.h"
@@ -25,6 +24,7 @@ struct Emoji {
 	Id id;
 	bool postfixed = false;
 	bool variated = false;
+	//bool doubleVariated = false;
 	bool colored = false;
 };
 
@@ -35,11 +35,11 @@ struct Data {
 	std::vector<std::vector<int>> categories;
 	std::map<QString, int, std::greater<QString>> replaces;
 };
-Data PrepareData();
+[[nodiscard]] Data PrepareData(const QString &dataPath);
 
 constexpr auto kPostfix = 0xFE0FU;
 
-common::LogStream logDataError();
+[[nodiscard]] common::LogStream logDataError();
 
 } // namespace emoji
 } // namespace codegen
