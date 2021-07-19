@@ -26,6 +26,8 @@ cmake --build build
 
 ## Web
 
+A ready-to-use version is available [here](https://rocka.github.io/tdesktop-emoji-sprite-generator).
+
 Once you have generated data.txt, fire any http server (eg. [svenstaro/miniserve](https://github.com/svenstaro/miniserve) or simply  `python -m http.server`) to serve [./web](./web), and navigate to index.html. The UI is pretty self-explaining, just click "Download .zip" and you should get the archive.
 
 Unzip the archive, and put the folder under `~/.local/share/TelegramDesktop/tdata/emoji`, you may need to delete existing folder with same name. Then goto Telegram settings -> Chat Settings -> Choose emoji set, switch emoji set back to default (Mac), and switch to Android. This should work without even restarting Telegram. **Note:** The preview in "Choose emoji set" dialog won't change, it's hard-coded.
