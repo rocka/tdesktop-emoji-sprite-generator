@@ -41,16 +41,19 @@
             <tr>
                 <th><label for="preview">Preview</label></th>
                 <td>
-                    <button id="preview" onclick="preview(0)">Preview</button>
+                    <button id="preview" onclick="preview(0)" disabled>Preview</button>
                     <label for="debug"><input id="debug" type="checkbox">Debug (Show Grid)</label>
-                    <button id="preview-prev" onclick="preview(-1)">Prev</button>
+                    <button id="preview-prev" onclick="preview(-1)" disabled>Prev</button>
                     <span id="preview-page">-/-</span>
-                    <button id="preview-next" onclick="preview(1)">Next</button>
+                    <button id="preview-next" onclick="preview(1)" disabled>Next</button>
                 </td>
             </tr>
             <tr>
                 <th><label for="generate">Generate</label></th>
-                <td><button id="generate" onclick="generate()">Download .zip</button></td>
+                <td>
+                    <button id="generate" onclick="generate()" disabled>Download .zip</button>
+                    <span id="generate-progress"></span>
+                </td>
             </tr>
         </tbody>
     </table>
