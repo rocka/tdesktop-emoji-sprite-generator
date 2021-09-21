@@ -123,9 +123,13 @@ std::map<InputId, InputId> FlagAliases = {
 };
 
 std::map<Id, std::vector<Id>> Aliases; // original -> list of aliased
+std::set<Id> AliasesAdded;
 
 void AddAlias(const Id &original, const Id &aliased) {
-	Aliases[original].push_back(aliased);
+	auto &aliases = Aliases[original];
+	if (std::find(aliases.begin(), aliases.end(), aliased) == aliases.end()) {
+		aliases.push_back(aliased);
+	}
 }
 
 constexpr auto kErrorBadData = 401;
@@ -176,28 +180,81 @@ void append(Id &id, uint32 code) {
 
 [[nodiscard]] map<Id, InputId> FillDoubleVariatedIds(const InputData &data) {
 	auto result = map<Id, InputId>();
-	for (const auto &[same, different] : data.doubleColored) {
+	for (const auto &[original, same, different] : data.doubleColored) {
 		auto variatedId = Id();
-		if (same.size() < 2) {
+		if (original.size() < 1) {
+			logDataError() << "original string should have at least one character.";
+			return {};
+		} else if (same.size() < 2) {
 			logDataError() << "colored string should have at least two characters.";
 			return {};
 		}
-		for (auto i = size_t(0), size = same.size(); i != size; ++i) {
-			auto code = same[i];
-			if (i == 1) {
-				if (code != ColorMask) {
-					logDataError() << "color code should appear at index 1.";
-					return {};
-				}
-			} else if (code == ColorMask) {
+		if (same.size() == 2) {
+			// original: 1
+			// same: original + color
+			// different: some1 + color1 + sep + some2 + sep + some3 + color2
+			if (same[1] != ColorMask) {
+				logDataError() << "color code should appear at index 1.";
+				return {};
+			} else if (same[0] == ColorMask) {
 				logDataError() << "color code should appear only at index 1.";
 				return {};
-			} else if (code == kPostfix) {
+			} else if (same[0] == kPostfix) {
 				logDataError() << "postfix in double colored is not supported.";
 				return {};
 			} else {
-				append(variatedId, code);
+				append(variatedId, same[0]);
 			}
+			// add an alias to 'same' in the form ..
+			// .. of 'some1 + color + sep + some2 + sep + some3 + color'
+			if (std::count(different.begin(), different.end(), kJoiner) != 2) {
+				logDataError() << "complex double colored bad different.";
+				return {};
+			}
+			for (const auto color : Colors) {
+				auto copy = same;
+				copy[1] = color;
+				auto sameWithColor = BareIdFromInput(copy);
+				copy = different;
+				for (auto &entry : copy) {
+					if (entry == Colors[0] || entry == Colors[1]) {
+						entry = color;
+					}
+				}
+				auto differentWithColor = BareIdFromInput(copy);
+				AddAlias(sameWithColor, differentWithColor);
+			}
+		} else {
+			// same: som1 + color + sep + some2 + sep + some3 + color
+			// different: some1 + color1 + sep + some2 + sep + some3 + color2
+			auto copy = different;
+			if (copy.size() < 7 || copy[1] != Colors[0] || copy[copy.size() - 1] != Colors[1]) {
+				logDataError() << "complex double colored bad different.";
+				return {};
+			}
+			copy[copy.size() - 1] = Colors[0];
+			if (copy != same) {
+				logDataError() << "complex double colored should colorize all the same.";
+				return {};
+			}
+			if (original.size() == 1) {
+				// original: 1
+				// add an alias to 'same' in the form of 'original + color'
+				for (const auto color : Colors) {
+					auto copy = original;
+					copy.push_back(color);
+					auto originalWithColor = BareIdFromInput(copy);
+					copy = same;
+					for (auto &entry : copy) {
+						if (entry == ColorMask) {
+							entry = color;
+						}
+					}
+					auto sameWithColor = BareIdFromInput(copy);
+					AddAlias(originalWithColor, sameWithColor);
+				}
+			}
+			variatedId = BareIdFromInput(original);
 		}
 		result.emplace(variatedId, different);
 	}
@@ -249,6 +306,7 @@ void appendCategory(
 				it = result.map.emplace(bareId, index).first;
 				result.list.push_back(move(emoji));
 				if (const auto a = Aliases.find(bareId); a != end(Aliases)) {
+					AliasesAdded.emplace(bareId);
 					for (const auto &alias : a->second) {
 						const auto ok = result.map.emplace(alias, index).second;
 						if (!ok) {
@@ -313,14 +371,11 @@ void appendCategory(
 		} else if (const auto d = doubleVariatedIds.find(bareId); d != end(doubleVariatedIds)) {
 			//result.list[it->second].doubleVariated = true;
 
-			auto baseId = bareId;
+			const auto baseId = bareId;
 			const auto &different = d->second;
-			if (baseId.size() != 2
-				|| different.size() < 4
+			if (different.size() < 4
 				|| different[1] != Colors[0]
-				|| different[different.size() - 1] != Colors[1]
-				|| std::find(baseId.begin(), baseId.end(), kPostfix) != baseId.end()
-				|| std::find(different.begin(), different.end(), kPostfix) != different.end()) {
+				|| different[different.size() - 1] != Colors[1]) {
 				logDataError() << "bad data in double-colored emoji.";
 				result = Data();
 				return;
@@ -329,24 +384,24 @@ void appendCategory(
 				for (auto color2 : Colors) {
 					auto colored = Emoji();
 					//colored.colored = true;
-					if (color1 == color2) {
+					if (color1 == color2 && baseId.size() == 2) {
 						colored.id = baseId;
 						append(colored.id, color1);
 					} else {
-						append(colored.id, different[0]);
-						append(colored.id, color1);
-						for (auto i = 2; i + 1 != different.size(); ++i) {
-							append(colored.id, different[i]);
+						auto copy = different;
+						copy[1] = color1;
+						copy[copy.size() - 1] = color2;
+						for (const auto code : copy) {
+							append(colored.id, code);
 						}
-						append(colored.id, color2);
 					}
-					auto bareColoredId = colored.id;
+					auto bareColoredId = colored.id.replace(QChar(kPostfix), QString());
 					if (addOne(bareColoredId, move(colored)) == result.map.end()) {
 						return;
 					}
 				}
 			}
-			
+
 		}
 		result.categories.back().push_back(it->second);
 	}
@@ -368,26 +423,6 @@ void fillReplaces(Data &result) {
 	}
 }
 
-bool AddItemBeforeItem(InputData &data, const InputId &add, const InputId &before) {
-	auto addToCategory = (InputCategory*)nullptr;
-	auto addBeforeIterator = InputCategory::iterator();
-	for (auto &category : data.categories) {
-		for (auto i = category.begin(), e = category.end(); i != e; ++i) {
-			if (*i == add) {
-				return true;
-			} else if (*i == before) {
-				addToCategory = &category;
-				addBeforeIterator = i;
-			}
-		}
-	}
-	if (!addToCategory) {
-		return false;
-	}
-	addToCategory->insert(addBeforeIterator, add);
-	return true;
-}
-
 bool CheckOldInCurrent(
 		const InputData &data,
 		const InputData &old,
@@ -397,7 +432,7 @@ bool CheckOldInCurrent(
 		auto result = was;
 		result.push_back(0x200DU);
 		result.push_back(gender);
-		result.push_back(0xFE0FU);
+		result.push_back(kPostfix);
 		return result;
 	};
 	const auto addGenderByIndex = [&](const InputId &was, int index) {
@@ -437,8 +472,8 @@ bool CheckOldInCurrent(
 				continue;
 			}
 
-			// Some emoji were ending with 0xFE0FU and now are not.
-			if (i->back() == 0xFE0FU) {
+			// Some emoji were ending with kPostfix and now are not.
+			if (i->back() == kPostfix) {
 				auto other = *i;
 				other.pop_back();
 				if (findInMany(data, other)) {
@@ -446,10 +481,10 @@ bool CheckOldInCurrent(
 				}
 			}
 
-			// Some emoji were not ending with 0xFE0FU and now are.
-			if (i->back() != 0xFE0FU) {
+			// Some emoji were not ending with kPostfix and now are.
+			if (i->back() != kPostfix) {
 				auto other = *i;
-				other.push_back(0xFE0FU);
+				other.push_back(kPostfix);
 				if (findInMany(data, other)) {
 					continue;
 				}
@@ -473,9 +508,9 @@ bool CheckOldInCurrent(
 //			const auto otherGenderIndex = [&] {
 //				for (auto g = begin(genders); g != end(genders); ++g) {
 //					auto altered = *i;
-//					altered.push_back(0x200DU);
+//					altered.push_back(kJoiner);
 //					altered.push_back(*g);
-//					altered.push_back(0xFE0FU);
+//					altered.push_back(kPostfix);
 //					if (findInMany(old, altered)) {
 //						return int(g - begin(genders));
 //					}
@@ -515,6 +550,29 @@ bool CheckOldInCurrent(
 //			}
 		}
 	}
+	for (auto i = begin(old.doubleColored); i != end(old.doubleColored); ++i) {
+		auto found = false;
+		for (auto j = begin(data.doubleColored); j != end(data.doubleColored); ++j) {
+			if (j->original == i->original) {
+				found = true;
+				if (j->same != i->same || j->different != i->different) {
+					common::logError(kErrorBadData, "input")
+						<< "Bad data: old double colored emoji (index "
+						<< (i - begin(old.doubleColored))
+						<< ") not equal to current.";
+					result = false;
+				}
+				break;
+			}
+		}
+		if (!found) {
+			common::logError(kErrorBadData, "input")
+				<< "Bad data: old double colored emoji (index "
+				<< (i - begin(old.doubleColored))
+				<< ") not found in current.";
+			result = false;
+		}
+	}
 	for (auto i = begin(old.colored); i != end(old.colored); ++i) {
 		if (find(data.colored, *i)) {
 			continue;
@@ -523,9 +581,9 @@ bool CheckOldInCurrent(
 		const auto otherGenderIndex = [&] {
 			for (auto g = begin(genders); g != end(genders); ++g) {
 				auto altered = *i;
-				altered.push_back(0x200DU);
+				altered.push_back(kJoiner);
 				altered.push_back(*g);
-				altered.push_back(0xFE0FU);
+				altered.push_back(kPostfix);
 				if (find(old.colored, altered)) {
 					return int(g - begin(genders));
 				}
@@ -543,7 +601,6 @@ bool CheckOldInCurrent(
 
 		const auto genderIndex = (1 - otherGenderIndex);
 		const auto real = addGenderByIndex(*i, genderIndex);
-		const auto bare = BareIdFromInput(real);
 		if (!find(data.colored, real)) {
 			common::logError(kErrorBadData, "input")
 				<< "Bad data: old colored emoji (index "
@@ -611,11 +668,23 @@ bool CheckOldInCurrent(
 	return result;
 }
 
-bool CheckOldInCurrent(const InputData &data, const std::set<Id> &variatedIds) {
-	const auto old1 = GetDataOld1();
-	const auto old2 = GetDataOld2();
-	return CheckOldInCurrent(data, GetDataOld1(), variatedIds)
-		&& CheckOldInCurrent(data, GetDataOld2(), variatedIds);
+bool CheckOldInCurrent(
+		const InputData &data,
+		const std::set<Id> &variatedIds,
+		const std::vector<QString> &oldDataPaths) {
+	if (!CheckOldInCurrent(data, GetDataOld1(), variatedIds)
+		|| !CheckOldInCurrent(data, GetDataOld2(), variatedIds)) {
+		return false;
+	}
+	for (const auto &path : oldDataPaths) {
+		const auto old = ReadData(path);
+		if (old.colored.empty() || old.doubleColored.empty()) {
+			return false;
+		} else if (!CheckOldInCurrent(data, old, variatedIds)) {
+			return false;
+		}
+	}
+	return true;
 }
 
 } // namespace
@@ -624,18 +693,18 @@ common::LogStream logDataError() {
 	return common::logError(kErrorBadData, "input") << "Bad data: ";
 }
 
-Data PrepareData(const QString &dataPath) {
+Data PrepareData(const QString &dataPath, const std::vector<QString> &oldDataPaths) {
 	Data result;
 
 	auto input = ReadData(dataPath);
 	const auto variatedIds = FillVariatedIds(input);
 	const auto doubleVariatedIds = FillDoubleVariatedIds(input);
 	const auto postfixRequiredIds = FillPostfixRequiredIds();
-	if (variatedIds.empty() || postfixRequiredIds.empty()) {
+	if (variatedIds.empty() || doubleVariatedIds.empty() || postfixRequiredIds.empty()) {
 		return Data();
 	}
 
-	if (!CheckOldInCurrent(input, variatedIds)) {
+	if (!CheckOldInCurrent(input, variatedIds, oldDataPaths)) {
 		return Data();
 	}
 
@@ -647,6 +716,20 @@ Data PrepareData(const QString &dataPath) {
 	}
 	appendCategory(result, input.other, variatedIds, doubleVariatedIds, postfixRequiredIds);
 	if (result.list.empty()) {
+		return Data();
+	}
+	if (AliasesAdded.size() != Aliases.size()) {
+		for (const auto &[key, list] : Aliases) {
+			if (AliasesAdded.find(key) == AliasesAdded.end()) {
+				QStringList expanded;
+				for (const auto &ch : key) {
+					expanded.push_back(QString::number(ch.unicode()));
+				}
+				common::logError(kErrorBadData, "input")
+					<< "Bad data: Not added aliases list for: "
+					<< expanded.join(QChar(',')).toStdString();
+			}
+		}
 		return Data();
 	}
 

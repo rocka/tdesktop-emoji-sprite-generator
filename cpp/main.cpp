@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
                  << argv[0] << "/path/to/emoji.txt /path/to/output.txt";
         return 1;
     }
-    auto data = codegen::emoji::PrepareData(argv[1]);
+    auto data = codegen::emoji::PrepareData(argv[1], {});
     QFile output(argv[2]);
     output.open(QIODevice::WriteOnly | QIODevice::Text);
     if(!output.isOpen()){

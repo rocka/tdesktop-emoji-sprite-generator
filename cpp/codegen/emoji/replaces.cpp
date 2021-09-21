@@ -33,8 +33,6 @@ public:
 	QVector<QString> result() const;
 
 private:
-	friend ReplacementWords operator+(const ReplacementWords &a, const ReplacementWords &b);
-
 	QMap<QString, int> wordsWithCounts_;
 
 };
@@ -69,17 +67,6 @@ QVector<QString> ReplacementWords::result() const {
 	for (auto i = wordsWithCounts_.cbegin(), e = wordsWithCounts_.cend(); i != e; ++i) {
 		for (auto j = 0, count = i.value(); j != count; ++j) {
 			result.push_back(i.key());
-		}
-	}
-	return result;
-}
-
-ReplacementWords operator+(const ReplacementWords &a, const ReplacementWords &b) {
-	ReplacementWords result = a;
-	for (auto i = b.wordsWithCounts_.cbegin(), e = b.wordsWithCounts_.cend(); i != e; ++i) {
-		auto j = result.wordsWithCounts_.constFind(i.key());
-		if (j == result.wordsWithCounts_.cend() || j.value() < i.value()) {
-			result.wordsWithCounts_[i.key()] = i.value();
 		}
 	}
 	return result;
@@ -307,8 +294,11 @@ Replaces PrepareReplaces(const QString &filename) {
 }
 
 bool CheckAndConvertReplaces(Replaces &replaces, const Data &data) {
+	if (data.map.empty()) {
+		return false;
+	}
 	auto result = Replaces(replaces.filename);
-	auto sorted = QMap<Id, Replace>();
+	auto sorted = QMultiMap<Id, Replace>();
 	auto findId = [&](const Id &id) {
 		return data.map.find(id) != data.map.cend();
 	};
@@ -324,7 +314,7 @@ bool CheckAndConvertReplaces(Replaces &replaces, const Data &data) {
 		if (data.list[it->second].postfixed) {
 			id += QChar(kPostfix);
 		}
-		auto inserted = sorted.insertMulti(id, replace);
+		auto inserted = sorted.insert(id, replace);
 		inserted.value().id = id;
 		return true;
 	};

@@ -33,8 +33,6 @@ constexpr auto kErrorCantWritePath = 851;
 
 constexpr auto kOriginalBits = 12;
 constexpr auto kIdSizeBits = 6;
-constexpr auto kColumnBits = 5;
-constexpr auto kRowBits = 7;
 
 common::ProjectInfo Project = {
 	"codegen_emoji",
@@ -48,11 +46,17 @@ QRect computeSourceRect(const QImage &image) {
 	auto top = 1, bottom = 1, left = 1, right = 1;
 	auto rgbBits = reinterpret_cast<const QRgb*>(image.constBits());
 	for (auto i = 0; i != size; ++i) {
-		if (rgbBits[i] > 0
-			|| rgbBits[(size - 1) * size + i] > 0
-			|| rgbBits[i * size] > 0
-			|| rgbBits[i * size + (size - 1)] > 0) {
-			logDataError() << "Bad border.";
+		if (rgbBits[i] > 0) {
+			logDataError() << "Bad top border.";
+			return QRect();
+		} else if (rgbBits[(size - 1) * size + i] > 0) {
+			logDataError() << "Bad bottom border.";
+			return QRect();
+		} else if (rgbBits[i * size] > 0) {
+			logDataError() << "Bad left border.";
+			return QRect();
+		} else if (rgbBits[i * size + (size - 1)] > 0) {
+			logDataError() << "Bad right border.";
 			return QRect();
 		}
 		if (rgbBits[1 * size + i] > 0) {
@@ -152,7 +156,7 @@ uint32 countCrc32(const void *data, std::size_t size) {
 
 Generator::Generator(const Options &options) : project_(Project)
 , writeImages_(options.writeImages)
-, data_(PrepareData(options.dataPath))
+, data_(PrepareData(options.dataPath, options.oldDataPaths))
 , replaces_(PrepareReplaces(options.replacesPath)) {
 	QDir dir(options.outputPath);
 	if (!dir.mkpath(".")) {
@@ -188,15 +192,15 @@ constexpr auto kEmojiRowsInFile = 16;
 constexpr auto kEmojiQuality = 99;
 constexpr auto kEmojiSize = 72;
 constexpr auto kEmojiFontSize = 72;
-constexpr auto kEmojiDelta = 67 - 4;
+constexpr auto kEmojiShiftTop = 67 - 4;
 constexpr auto kScaleFromLarge = true;
 constexpr auto kLargeEmojiSize = 180;
 constexpr auto kLargeEmojiFontSizeMac = 180;
-constexpr auto kLargeEmojiDeltaMac = 167 - 9;
-constexpr auto kEmojiShiftMac = 0;
+constexpr auto kLargeEmojiShiftTopMac = 167 - 9;
+constexpr auto kEmojiShiftLeftMac = 0;
 constexpr auto kLargeEmojiFontSizeAndroid = 178;
-constexpr auto kLargeEmojiDeltaAndroid = 140;
-constexpr auto kEmojiShiftAndroid = -4;
+constexpr auto kLargeEmojiShiftTopAndroid = 140;
+constexpr auto kEmojiShiftLeftAndroid = -4;
 
 enum class ImageType {
 	Mac,
@@ -222,15 +226,23 @@ bool PaintSingleFromFont(QPainter &p, QRect targetRect, const Emoji &data, QFont
 		QPainter q(&singleImage);
 		q.setPen(QColor(0, 0, 0, 255));
 		q.setFont(font);
-		const auto delta = !kScaleFromLarge
-			? kEmojiDelta
+		const auto shiftTop = !kScaleFromLarge
+			? kEmojiShiftTop
 			: (type == ImageType::Mac)
-			? kLargeEmojiDeltaMac
-			: kLargeEmojiDeltaAndroid;
-		const auto shift = (type == ImageType::Mac)
-			? kEmojiShiftMac
-			: kEmojiShiftAndroid;
-		q.drawText(2 + shift, 2 + delta, data.id);
+			? kLargeEmojiShiftTopMac
+			: kLargeEmojiShiftTopAndroid;
+		const auto shiftLeft = (type == ImageType::Mac)
+			? kEmojiShiftLeftMac
+			: kEmojiShiftLeftAndroid;
+		auto text = data.id;
+		if (type == ImageType::Android) {
+			if (text.size() > 2 && text.indexOf(QChar(0xFE0F)) >= 0) {
+				// Some emoji, like "Kiss: Person, Person, Light Skin Tone, Medium Skin Tone",
+				// aren't rendered correctly if string still contains 0xFE0F-s from Apple.
+				text = text.replace(QChar(0xFE0F), QString());
+			}
+		}
+		q.drawText(2 + shiftLeft, 2 + shiftTop, text);
 	}
 	auto sourceRect = computeSourceRect(singleImage);
 	if (sourceRect.isEmpty()) {
@@ -279,27 +291,85 @@ bool PaintSingleFromFile(QPainter &p, QRect targetRect, const Emoji &data, const
 		const auto row = targetRect.y() / targetRect.height();
 		p.fillRect(targetRect, ((column + row) % 2) ? QColor(255, 0, 0, 255) : QColor(0, 255, 0, 255));
 	};
-	const auto name = nameParts.join('-');
-	const auto nameFull = namePartsFull.join('-');
-	const auto nameAdded = name + "-fe0f";
-	const auto image = [&] {
-		if (const auto result = QImage(base + '/' + name + ".png"); !result.isNull()) {
-			return result;
-		} else if (const auto full = QImage(base + '/' + nameFull + ".png"); !full.isNull()) {
-			return full;
+	auto checkNames = QStringList();
+	checkNames.push_back(nameParts.join('-'));
+	checkNames.push_back(namePartsFull.join('-'));
+	checkNames.push_back(nameParts.join('-') + "-fe0f");
+	if (type == ImageType::Twemoji) {
+		// Some names have 'fe0f' after a small joined part, while
+		// the data doesn't have it.
+		//
+		// Like, we have in data:
+		// 1f469-1f3fb-200d-2764-200d-1f468-1f3fc
+		// and twemoji has file
+		// 1f469-1f3fb-200d-2764-fe0f-200d-1f468-1f3fc
+		//
+		// But we need to check all combination, because we have:
+		// 1f469-1f3fb-200d-2764-200d-1f48b-200d-1f469-1f3fd
+		// and twemoji has file
+		// 1f469-1f3fb-200d-2764-fe0f-200d-1f48b-200d-1f469-1f3fd
+		//
+		// So we add all the combinations.
+		auto joined = std::vector<QStringList>();
+		auto from = 0;
+		do {
+			auto sep = nameParts.indexOf("200d", from);
+			if (sep < 0) {
+				joined.push_back(nameParts.mid(from));
+			} else if (sep > from) {
+				joined.push_back(nameParts.mid(from, sep - from));
+			}
+			from = sep + 1;
+		} while (from > 0);
+		if (joined.size() > 0) {
+			auto smallIndices = std::vector<int>();
+			for (auto i = 0; i < int(joined.size()); ++i) {
+				if (joined[i].size() == 1) {
+					smallIndices.push_back(i);
+				}
+			}
+			if (!smallIndices.empty()) {
+				// Add all the combinations where some of the small
+				// joined groups have the postfix added and some don't.
+				const auto count = (1U << int(smallIndices.size()));
+				for (auto bits = 0U; bits != count; ++bits) {
+					auto partsWithPostfixes = QStringList();
+					auto smallIndex = 0;
+					for (auto i = 0; i < int(joined.size()); ++i) {
+						partsWithPostfixes.append(joined[i]);
+						if (joined[i].size() == 1) {
+							if (bits & (1U << smallIndex)) {
+								partsWithPostfixes.append("fe0f");
+							}
+							++smallIndex;
+						}
+						if (i + 1 < int(joined.size())) {
+							partsWithPostfixes.append("200d");
+						}
+					}
+					checkNames.push_back(partsWithPostfixes.join('-'));
+				}
+			}
 		}
-		return QImage(base + '/' + nameAdded + ".png");
+	}
+	const auto image = [&] {
+		for (const auto &name : checkNames) {
+			if (const auto result = QImage(base + '/' + name + ".png"); !result.isNull()) {
+				return result;
+			}
+		}
+		return QImage();
 	}();
 	const auto allowDownscale = (type == ImageType::JoyPixels);
 	if (image.isNull()) {
-		std::cout << "NOT FOUND: " << name.toStdString() << std::endl;
+		std::cout << "NOT FOUND: " << checkNames[1].toStdString() << std::endl;
 		fillEmpty();
 		return false;
 	} else if (image.width() != image.height()
 		|| image.width() < targetRect.width()
 		|| image.height() < targetRect.height()
 		|| (!allowDownscale && image.width() != targetRect.width())) {
-		std::cout << "BAD SIZE: " << name.toStdString() << std::endl;
+		std::cout << "BAD SIZE: " << checkNames[1].toStdString() << std::endl;
 		fillEmpty();
 		return false;
 	} else if (allowDownscale && image.width() > targetRect.width()) {
@@ -315,8 +385,6 @@ QImage Generator::generateImage(int imageIndex) {
 
 	auto emojiCount = int(data_.list.size());
 	auto columnsCount = kEmojiInRow;
-	auto fullRowsCount = (emojiCount / columnsCount) + ((emojiCount % columnsCount) ? 1 : 0);
-	auto imagesCount = (fullRowsCount / kEmojiRowsInFile) + ((fullRowsCount % kEmojiRowsInFile) ? 1 : 0);
 
 	auto sourceSize = kScaleFromLarge ? kLargeEmojiSize : kEmojiSize;
 
@@ -328,6 +396,10 @@ QImage Generator::generateImage(int imageIndex) {
 			std::cout << "NotoColorEmoji.ttf not loaded from: " << base.toStdString() << std::endl;
 			return QImage();
 		}
+	} else if (type == ImageType::Twemoji) {
+		base += "/assets/72x72";
+	} else if (type == ImageType::JoyPixels) {
+		base += "/png/unicode/512";
 	}
 	if (type == ImageType::Mac || type == ImageType::Android) {
 		const auto family = (type == ImageType::Mac)
@@ -410,7 +482,7 @@ bool Generator::writeImages() {
 				return false;
 			}
 		}
-		auto needResave = !QFileInfo(filename).exists();
+		auto needResave = !QFileInfo::exists(filename);
 		if (!needResave) {
 			QFile file(filename);
 			if (!file.open(QIODevice::ReadOnly)) {
