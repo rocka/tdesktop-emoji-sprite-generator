@@ -120,6 +120,7 @@ std::map<InputId, InputId> FlagAliases = {
 // { { 0xD83CDDF9U, 0xD83CDDE6U, }, { 0xD83CDDF8U, 0xD83CDDEDU, } },
 // { { 0xD83CDDF2U, 0xD83CDDEBU, }, { 0xD83CDDEBU, 0xD83CDDF7U, } },
 // { { 0xD83CDDEAU, 0xD83CDDE6U, }, { 0xD83CDDEAU, 0xD83CDDF8U, } },
+  { { 0xD83CDDE8U, 0xD83CDDF5U, }, { 0xD83CDDEBU, 0xD83CDDF7U, } },
 };
 
 std::map<Id, std::vector<Id>> Aliases; // original -> list of aliased
@@ -192,7 +193,6 @@ void append(Id &id, uint32 code) {
 		if (same.size() == 2) {
 			// original: 1
 			// same: original + color
-			// different: some1 + color1 + sep + some2 + sep + some3 + color2
 			if (same[1] != ColorMask) {
 				logDataError() << "color code should appear at index 1.";
 				return {};
@@ -205,10 +205,25 @@ void append(Id &id, uint32 code) {
 			} else {
 				append(variatedId, same[0]);
 			}
-			// add an alias to 'same' in the form ..
-			// .. of 'some1 + color + sep + some2 + sep + some3 + color'
-			if (std::count(different.begin(), different.end(), kJoiner) != 2) {
-				logDataError() << "complex double colored bad different.";
+			if (different.size() == 5) {
+				// different: some1 + color1 + sep + some2 + color2
+				if (std::count(different.begin(), different.end(), kJoiner) != 1
+					|| different[2] != kJoiner) {
+					logDataError() << "complex short double colored bad different.";
+					return {};
+				}
+				// add an alias to 'same' in the form ..
+				// .. of 'some1 + color + sep + some2 + color'
+			} else if (different.size() >= 7) {
+				// different: some1 + color1 + sep + some2 + sep + some3 + color2
+				if (std::count(different.begin(), different.end(), kJoiner) != 2) {
+					logDataError() << "complex double colored bad different.";
+					return {};
+				}
+				// add an alias to 'same' in the form ..
+				// .. of 'some1 + color + sep + some2 + sep + some3 + color'
+			} else {
+				logDataError() << "complex double colored unknown different.";
 				return {};
 			}
 			for (const auto color : Colors) {
@@ -225,7 +240,7 @@ void append(Id &id, uint32 code) {
 				AddAlias(sameWithColor, differentWithColor);
 			}
 		} else {
-			// same: som1 + color + sep + some2 + sep + some3 + color
+			// same: some1 + color + sep + some2 + sep + some3 + color
 			// different: some1 + color1 + sep + some2 + sep + some3 + color2
 			auto copy = different;
 			if (copy.size() < 7 || copy[1] != Colors[0] || copy[copy.size() - 1] != Colors[1]) {

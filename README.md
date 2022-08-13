@@ -6,7 +6,7 @@ This project was originally some code snippets mentioned in my blog post [为 Te
 
 ## C++
 
-Emoji text are generated using C++. Files under [cpp/codegen](./cpp/codegen) were taken from [desktop-app/codegen](https://github.com/desktop-app/codegen).
+Emoji text are generated using C++. Files under [cpp/base](./cpp/base) were taken from [desktop-app/lib_base](https://github.com/desktop-app/lib_base); [cpp/codegen](./cpp/codegen) were taken from [desktop-app/codegen](https://github.com/desktop-app/codegen).
 
 ### Build
 
