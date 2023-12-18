@@ -129,16 +129,13 @@ async function draw(groupIndex, options = {}, callback = () => { }) {
         ctx.textBaseline = 'bottom';
         // draw grid
         if (options.debug) {
-            ctx.strokeStyle = '#ccc';
-            for (let i = 1; i < SpritePerLine; i++) {
-                ctx.moveTo(SpriteSize * i, 0);
-                ctx.lineTo(SpriteSize * i, SpriteSize * SpriteLines);
-                ctx.stroke();
-            }
-            for (let j = 1; j < SpriteLines; j++) {
-                ctx.moveTo(0, SpriteSize * j);
-                ctx.lineTo(SpriteSize * SpritePerLine, SpriteSize * j);
-                ctx.stroke();
+            ctx.fillStyle = '#ddd';
+            for (let i = 0; i < SpritePerLine; i++) {
+                for (let j = 0; j < SpriteLines; j++) {
+                    if ((i + j) % 2 === 1) {
+                        ctx.fillRect(SpriteSize * i, SpriteSize * j, SpriteSize, SpriteSize);
+                    }
+                }
             }
         }
         callback({ total: groups.length, current: +i, phase: 'Generating image ...' });
