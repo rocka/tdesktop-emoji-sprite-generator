@@ -13,15 +13,14 @@ Emoji text are generated using C++. Files under [cpp/base](./cpp/base) were take
 Dependencies: CMake, Qt5
 
 ```sh
-cd cpp
-cmake -B build .
+cmake -S cpp -B build
 cmake --build build
 ```
 
 ### Usage
 
 ```sh
-./build/tdesktop-emoji-sprite-generator ../assets/emoji.txt ../web/data.txt
+./build/tdesktop-emoji-sprite-generator ./assets/emoji.txt ./web/data.txt
 ```
 
 ## Web

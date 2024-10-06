@@ -22,7 +22,7 @@ jobs:
           cmake --build build
 
       - name: Generate emoji data
-        run: ./build/tdesktop-emoji-sprite-generator ../assets/emoji.txt ../web/data.txt 
+        run: ./build/tdesktop-emoji-sprite-generator ./assets/emoji.txt ./web/data.txt 
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
