@@ -1,10 +1,9 @@
-/*
-This file is part of Telegram Desktop,
-the official desktop application for the Telegram messaging service.
-
-For license and copyright information please follow this link:
-https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
-*/
+// This file is part of Desktop App Toolkit,
+// a set of libraries for developing nice desktop applications.
+//
+// For license and copyright information please follow this link:
+// https://github.com/desktop-app/legal/blob/master/LEGAL
+//
 #pragma once
 
 #include <QtCore/QString>
@@ -22,37 +21,37 @@ constexpr int kErrorUnexpectedEndOfFile = 104;
 // Wrapper around std::ostream that adds '\n' to the end of the logging line.
 class LogStream {
 public:
-    enum NullType {
-        Null,
-    };
-    explicit LogStream(NullType) : final_(false) {
-    }
-    explicit LogStream(std::ostream &stream) : stream_(&stream) {
-    }
-    LogStream(LogStream &&other) : stream_(other.stream_), final_(other.final_) {
-        other.final_ = false;
-    }
-    std::ostream *stream() const {
-        return stream_;
-    }
-    ~LogStream() {
-        if (final_) {
-            *stream_ << '\n';
-        }
-    }
+	enum NullType {
+		Null,
+	};
+	explicit LogStream(NullType) : final_(false) {
+	}
+	explicit LogStream(std::ostream &stream) : stream_(&stream) {
+	}
+	LogStream(LogStream &&other) : stream_(other.stream_), final_(other.final_) {
+		other.final_ = false;
+	}
+	std::ostream *stream() const {
+		return stream_;
+	}
+	~LogStream() {
+		if (final_) {
+			*stream_ << '\n';
+		}
+	}
 
 private:
-    std::ostream *stream_ = nullptr;
-    bool final_ = true;
+	std::ostream *stream_ = nullptr;
+	bool final_ = true;
 
 };
 
 template <typename T>
 LogStream operator<<(LogStream &&stream, T &&value) {
-    if (auto ostream = stream.stream()) {
-        *ostream << std::forward<T>(value);
-    }
-    return std::forward<LogStream>(stream);
+	if (auto ostream = stream.stream()) {
+		*ostream << std::forward<T>(value);
+	}
+	return std::forward<LogStream>(stream);
 }
 
 // Outputs file name, line number and error code to std::err. Usage:

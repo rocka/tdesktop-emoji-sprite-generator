@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.31)
 
 project(tdesktop-emoji-sprite-generator)
 
@@ -7,7 +7,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Instruct CMake to run moc automatically when needed
 #set(CMAKE_AUTOMOC ON)
 
-find_package(Qt5 COMPONENTS Core REQUIRED)
+find_package(Qt6 COMPONENTS Core REQUIRED)
 
 add_executable(tdesktop-emoji-sprite-generator
     codegen/common/logging.cpp
@@ -18,4 +18,4 @@ add_executable(tdesktop-emoji-sprite-generator
     main.cpp
 )
 
-target_link_libraries(tdesktop-emoji-sprite-generator Qt5::Core)
+target_link_libraries(tdesktop-emoji-sprite-generator Qt6::Core)

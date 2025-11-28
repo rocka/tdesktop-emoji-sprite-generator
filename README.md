@@ -10,7 +10,7 @@ Emoji text are generated using C++. Files under [cpp/base](./cpp/base) were take
 
 ### Build
 
-Dependencies: CMake, Qt5
+Dependencies: CMake, Qt6
 
 ```sh
 cmake -S cpp -B build
